@@ -50,6 +50,43 @@ btnHost.onclick = () => {
   socket.emit('host-create-game');
 };
 
+// ----- Player Flow -----
+btnJoin.onclick = () => {
+  const name = nameInput.value.trim();
+  const gameId = gameInput.value.trim();
+  if (!name || !gameId) return showMessage("Please enter both name and Game ID");
+
+  socket.emit('player-join', { name, gameId });
+};
+
+// When player successfully joins
+socket.on('join-success', ({ name, gameId }) => {
+  menu.style.display = 'none';
+  playerUI.style.display = 'block';
+  joinStatus.textContent = `Joined Game ${gameId} as ${name}`;
+});
+
+// When join fails
+socket.on('join-failed', ({ reason }) => {
+  showMessage(`Join failed: ${reason}`);
+});
+
+// Show role to player
+socket.on('role-reveal', ({ role }) => {
+  roleMsg.textContent = `Your role: ${role}`;
+  roleBox.style.display = 'flex';
+  // Hide role after 30 seconds
+  setTimeout(() => (roleBox.style.display = 'none'), 30000);
+});
+
+// Game over message for all
+socket.on('game-over', ({ winner }) => {
+  showMessage(`Game Over! Winner: ${winner}`);
+  hostControls.style.display = 'none';
+  menu.style.display = 'block';
+});
+
+
 // Server confirms game created
 socket.on('game-created', ({ gameId }) => {
   currentGameId = gameId;
