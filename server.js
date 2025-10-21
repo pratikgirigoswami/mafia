@@ -1,16 +1,30 @@
-const express = require('express');
-const app = express();
-const http = require('http').createServer(app);
-const io = require('socket.io')(http);
+// --- 1. Setup ---
+require('dotenv').config();
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
-app.use(express.static('public'));
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
+    ]
+});
 
-const PORT = process.env.PORT || 3000;
+const TOKEN = process.env.DISCORD_TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
 
-let games = {}; // store game sessions
+// This keeps track of all games. We'll key it by channel ID.
+let games = {};
 
+// --- 2. Your Original Game Logic (Adapted for Discord) ---
+
+/**
+ * Assigns roles to players in a game.
+ * We now use the 'user' object to DM them later.
+ */
 function assignRoles(players) {
-    const numMafia = Math.max(1, Math.floor(players.length * 0.3)); // Ensure at least 1 Mafia
+    const numMafia = Math.max(1, Math.floor(players.length * 0.3));
     const shuffled = [...players].sort(() => 0.5 - Math.random());
     
     let assignedDoctor = false;
@@ -20,10 +34,10 @@ function assignRoles(players) {
         p.alive = true;
         if (idx < numMafia) {
             p.role = 'Mafia';
-        } else if (idx === numMafia && players.length > 2) { // Need >2 players for special roles
+        } else if (idx === numMafia && players.length > 2) {
             p.role = 'Doctor';
             assignedDoctor = true;
-        } else if (idx === numMafia + 1 && players.length > 3) { // Need >3 players for detective
+        } else if (idx === numMafia + 1 && players.length > 3) {
             p.role = 'Detective';
             assignedDetective = true;
         } else {
@@ -31,193 +45,255 @@ function assignRoles(players) {
         }
     });
 
-    // Handle small games: if no doc/det, assign them if possible
     if (!assignedDoctor && players.length > 2) {
-         // Find first citizen and make them doctor
         let cit = shuffled.find(p => p.role === 'Citizen');
         if (cit) cit.role = 'Doctor';
     }
     if (!assignedDetective && players.length > 3) {
-         // Find first *remaining* citizen and make them detective
         let cit = shuffled.find(p => p.role === 'Citizen');
-         if (cit) cit.role = 'Detective';
+        if (cit) cit.role = 'Detective';
     }
     
     return shuffled;
 }
 
-io.on('connection', socket => {
-    console.log('New connection:', socket.id);
+/**
+ * Checks for a win condition.
+ * Returns 'Townsfolk' or 'Mafia' if there's a winner, otherwise null.
+ */
+function checkWin(game) {
+    if (!game) return null;
+    const mafiaAlive = game.players.filter(p => p.alive && p.role === 'Mafia').length;
+    const townsfolkAlive = game.players.filter(p => p.alive && p.role !== 'Mafia').length;
 
-    // Host creates game
-    socket.on('host-create-game', () => {
-        const gameId = Math.random().toString(36).substring(2, 7).toUpperCase();
-        games[gameId] = { 
-            hostId: socket.id, 
-            players: [], 
-            phase: 'waiting', 
-            pendingElim: null, 
-            savedPlayer: null 
-        };
-        socket.join(gameId);
-        socket.emit('game-created', { gameId });
-    });
+    if (mafiaAlive === 0) return 'Townsfolk';
+    if (mafiaAlive >= townsfolkAlive) return 'Mafia';
+    return null;
+}
 
-    // Player joins game
-    socket.on('player-join', ({ name, gameId }) => {
-        const game = games[gameId];
-        if (!game) return socket.emit('join-failed', { reason: 'Game not found' });
-        if (game.phase !== 'waiting') return socket.emit('join-failed', { reason: 'Game has already started' });
+/**
+ * Creates the helpful 'Cheat Sheet' embed for the host.
+ */
+function createHostEmbed(game) {
+    const alivePlayers = game.players.filter(p => p.alive);
+    const mafiaCount = alivePlayers.filter(p => p.role === 'Mafia').length;
+    const townsfolkCount = alivePlayers.filter(p => p.role !== 'Mafia').length;
+
+    const playerList = game.players.map(p => {
+        const status = p.alive ? '☀️ Alive' : '💀 Dead';
+        const role = p.role ? p.role : '???';
+        return `**${p.name}** (${status}) - ${role}`;
+    }).join('\n');
+
+    return new EmbedBuilder()
+        .setTitle('Mafia Host Cheat Sheet')
+        .setDescription(`**Phase:** ${game.phase.toUpperCase()}\n\n${playerList}`)
+        .addFields(
+            { name: 'Players Alive', value: `${alivePlayers.length}`, inline: true },
+            { name: 'Townsfolk', value: `${townsfolkCount}`, inline: true },
+            { name: 'Mafia', value: `${mafiaCount}`, inline: true }
+        )
+        .setColor(0x0099FF)
+        .setFooter({ text: 'This message is only visible to you.' });
+}
+
+// --- 3. Bot Commands & Event Listeners ---
+client.once('ready', () => {
+    console.log(`Logged in as ${client.user.tag}!`);
+    console.log('Bot is ready and running.');
+});
+
+client.on('interactionCreate', async interaction => {
+    if (!interaction.isChatInputCommand()) return;
+
+    const { commandName, options, channel, user } = interaction;
+    const game = games[channel.id]; // Get the game for this channel
+
+    // --- Host-Only Command Check ---
+    const hostOnlyCommands = ['lock', 'night', 'kill', 'save', 'day', 'vote', 'end', 'status'];
+    if (hostOnlyCommands.includes(commandName) && (!game || user.id !== game.hostId)) {
+        await interaction.reply({ content: 'Only the host of the current game can use this command!', ephemeral: true });
+        return;
+    }
+
+    // --- /start command ---
+    if (commandName === 'start') {
+        if (game) {
+            await interaction.reply({ content: 'A game is already in progress in this channel!', ephemeral: true });
+            return;
+        }
         
-        const player = { id: socket.id, name, alive: true, role: null };
-        game.players.push(player);
-        socket.join(gameId);
-        socket.emit('join-success', { gameId, name });
-        io.to(gameId).emit('player-list-update', game.players); // Use 'player-list-update'
-    });
+        games[channel.id] = {
+            hostId: user.id,
+            hostUser: user,
+            players: [],
+            phase: 'waiting',
+            pendingElim: null,
+            savedPlayer: null,
+            channel: channel
+        };
 
-    // Host locks game → assign roles
-    socket.on('host-lock-game', ({ gameId }) => {
-        const game = games[gameId];
-        if (!game || socket.id !== game.hostId) return;
-        if (game.players.length < 3) {
-             // Optional: send message back to host
-             return; // Need at least 3 players
+        await interaction.reply(`A new Mafia game has been started by **${user.username}**!\nType **/join** to join the game.`);
+    }
+
+    // --- /join command ---
+    if (commandName === 'join') {
+        if (!game) {
+            await interaction.reply({ content: 'No game is currently waiting for players!', ephemeral: true });
+            return;
+        }
+        if (game.phase !== 'waiting') {
+            await interaction.reply({ content: 'This game has already started!', ephemeral: true });
+            return;
+        }
+        if (game.players.some(p => p.id === user.id)) {
+            await interaction.reply({ content: 'You have already joined this game!', ephemeral: true });
+            return;
         }
 
-        assignRoles(game.players).forEach(p => {
-            io.to(p.id).emit('role-reveal', { role: p.role });
-        });
-        
-        io.to(gameId).emit('player-list-update', game.players); // Send updated list with roles (for host)
+        const player = {
+            id: user.id,
+            name: user.username,
+            user: user, // Store the user object to send DMs
+            alive: true,
+            role: null
+        };
+        game.players.push(player);
+
+        await interaction.reply(`**${user.username}** has joined the game! (${game.players.length} players total)`);
+    }
+
+    // --- /lock command ---
+    if (commandName === 'lock') {
+        if (game.players.length < 3) {
+            await interaction.reply({ content: 'You need at least 3 players to start!', ephemeral: true });
+            return;
+        }
+
         game.phase = 'night';
-        io.to(gameId).emit('phase-update', { phase: 'night' });
-    });
+        assignRoles(game.players);
 
-    // Host actions
-    socket.on('start-night', ({ gameId }) => {
-        const game = games[gameId]; if (!game) return;
-        game.phase = 'mafia'; // Set phase to 'mafia'
-        io.to(gameId).emit('phase-update', { phase: 'mafia' }); // Tell client it's 'mafia' phase
-    });
+        // This is the "magic" role reveal, now super simple!
+        for (const player of game.players) {
+            try {
+                await player.user.send(`The game has started! Your role is: **${player.role}**`);
+            } catch (error) {
+                console.log(`Could not DM ${player.name}`);
+                await channel.send(`@${player.name}, I couldn't send you a DM. Please check your privacy settings!`);
+            }
+        }
 
-    // *** FIXED: Renamed playerId to targetId ***
-    socket.on('mafia-kill', ({ gameId, targetId }) => {
-        const game = games[gameId]; if (!game) return;
-        game.pendingElim = targetId;
+        await interaction.reply('**The game is locked!** Roles have been sent via DM. I will now send the host the cheat sheet.');
+        // Send the host their private cheat sheet
+        await game.hostUser.send({ embeds: [createHostEmbed(game)] });
+        await channel.send('**Night 1 begins!** (Host, check your DMs for commands)');
+    }
+
+    // --- /status (Host Cheat Sheet) ---
+    if (commandName === 'status') {
+         await interaction.reply({ embeds: [createHostEmbed(game)], ephemeral: true });
+    }
+
+    // --- /night command ---
+    if (commandName === 'night') {
+        game.phase = 'mafia';
+        await interaction.reply({ content: '🌙 **Night begins.**\nHost: Use **/kill** to select the Mafia\'s target.', ephemeral: true });
+    }
+
+    // --- /kill command ---
+    if (commandName === 'kill') {
+        const targetUser = options.getUser('player');
+        game.pendingElim = targetUser.id;
         game.phase = 'doctor';
-        io.to(gameId).emit('phase-update', { phase: 'doctor' });
-    });
-
-    // *** FIXED: Renamed playerId to targetId ***
-    socket.on('doctor-save', ({ gameId, targetId }) => {
-        const game = games[gameId]; if (!game) return;
-        game.savedPlayer = targetId;
-        game.phase = 'day'; // Ready for day announcement
-        io.to(gameId).emit('phase-update', { phase: 'day' });
-    });
-
-    socket.on('start-day', ({ gameId }) => {
-        const game = games[gameId]; if (!game) return;
         
-        const killedId = (game.pendingElim && game.pendingElim !== game.savedPlayer) ? game.pendingElim : null;
+        await interaction.reply({ content: `Target **${targetUser.username}** logged.\nHost: Use **/save** to select the Doctor's target.`, ephemeral: true });
+    }
+    
+    // --- /save command ---
+    if (commandName === 'save') {
+        const targetUser = options.getUser('player');
+        game.savedPlayer = targetUser.id;
+        game.phase = 'day';
+
+        await interaction.reply({ content: `Save **${targetUser.username}** logged.\nHost: Use **/day** to proceed.`, ephemeral: true });
+    }
+
+    // --- /day command ---
+    if (commandName === 'day') {
         let killedPlayer = null;
-        let killedRole = null;
+        let killedRole = 'Townsfolk'; // Default alignment
+        const killedId = (game.pendingElim && game.pendingElim !== game.savedPlayer) ? game.pendingElim : null;
+
+        let message = "☀️ **Day begins!**\n";
 
         if (killedId) {
             const p = game.players.find(pl => pl.id === killedId);
-            if (p) { 
-                p.alive = false; 
-                killedPlayer = p.name;
-                killedRole = (p.role === 'Mafia') ? 'Mafia' : 'Townsfolk'; // Only reveal alignment
+            if (p) {
+                p.alive = false;
+                killedPlayer = p;
+                killedRole = (p.role === 'Mafia') ? 'Mafia' : 'Townsfolk';
+                message += `Last night, **${p.name}** was eliminated! Their alignment was **${killedRole}**.`;
             }
-        }
-
-        // Announce result
-        if (killedPlayer) {
-            io.to(gameId).emit('night-result', { killed: killedPlayer, role: killedRole });
         } else {
-             io.to(gameId).emit('night-result', { killed: null, role: null });
+            message += "A peaceful night! No one was eliminated.";
         }
+        
+        await channel.send(message);
 
+        // Reset for next night
         game.pendingElim = null;
         game.savedPlayer = null;
-        
-        // Check for win *after* night kill
-        if (checkWin(gameId)) return; 
+
+        // Check for win
+        const winner = checkWin(game);
+        if (winner) {
+            await channel.send(`**GAME OVER! The ${winner.toUpperCase()} win!**`);
+            delete games[channel.id]; // End game
+            return;
+        }
 
         game.phase = 'vote';
-        io.to(gameId).emit('phase-update', { phase: 'vote' });
-        io.to(gameId).emit('player-list-update', game.players);
-    });
-
-    // *** FIXED: Renamed playerId to targetId ***
-    socket.on('vote-elim', ({ gameId, targetId }) => {
-        const game = games[gameId]; if (!game) return;
-        const p = game.players.find(pl => pl.id === targetId);
-        
-        if (p) {
-             p.alive = false;
-             const killedRole = (p.role === 'Mafia') ? 'Mafia' : 'Townsfolk'; // Only reveal alignment
-             io.to(gameId).emit('vote-result', { killed: p.name, role: killedRole });
-        }
-
-        // Check for win *after* vote kill
-        if (checkWin(gameId)) return;
-
-        game.phase = 'night';
-        io.to(gameId).emit('phase-update', { phase: 'night' });
-        io.to(gameId).emit('player-list-update', game.players);
-    });
-
-    socket.on('end-game', ({ gameId }) => {
-        const game = games[gameId];
-        if (!game || socket.id !== game.hostId) return;
-        io.to(gameId).emit('game-over', { winner: 'Game Ended by Host' });
-        delete games[gameId];
-    });
-
-    function checkWin(gameId) {
-        const game = games[gameId]; if (!game) return false;
-        
-        const mafiaAlive = game.players.filter(p => p.alive && p.role === 'Mafia').length;
-        const citizenAlive = game.players.filter(p => p.alive && p.role !== 'Mafia').length;
-
-        let winner = null;
-        if (mafiaAlive === 0) {
-            winner = 'Townsfolk';
-        } else if (mafiaAlive >= citizenAlive) {
-            winner = 'Mafia';
-        }
-        
-        if (winner) {
-            io.to(gameId).emit('game-over', { winner });
-            delete games[gameId]; // Clean up game
-            return true;
-        }
-        return false;
+        await channel.send("The discussion begins. Host, use **/vote** when ready.");
+        await game.hostUser.send({ embeds: [createHostEmbed(game)], ephemeral: true }); // Update host
     }
 
-    socket.on('disconnect', () => {
-        console.log('Connection disconnected:', socket.id);
-        // Find and remove player from any games
-        for (const gameId in games) {
-            const game = games[gameId];
-            const playerIndex = game.players.findIndex(p => p.id === socket.id);
-            
-            if (playerIndex !== -1) {
-                game.players.splice(playerIndex, 1);
-                io.to(gameId).emit('player-list-update', game.players);
-                break;
-            }
-            
-            // If host disconnects, end game
-            if (game.hostId === socket.id) {
-                 io.to(gameId).emit('game-over', { winner: 'Host disconnected' });
-                 delete games[gameId];
-            }
+    // --- /vote command ---
+    if (commandName === 'vote') {
+        const targetUser = options.getUser('player');
+        const p = game.players.find(pl => pl.id === targetUser.id);
+
+        let message = "";
+
+        if (p) {
+            p.alive = false;
+            const killedRole = (p.role === 'Mafia') ? 'Mafia' : 'Townsfolk';
+            message = `By popular vote, **${p.name}** has been eliminated! Their alignment was **${killedRole}**.`;
+        } else {
+            message = "Error in voting. Player not found.";
         }
-    });
+        
+        await channel.send(message);
+
+        // Check for win
+        const winner = checkWin(game);
+        if (winner) {
+            await channel.send(`**GAME OVER! The ${winner.toUpperCase()} win!**`);
+            delete games[channel.id]; // End game
+            return;
+        }
+
+        game.phase = 'night';
+        await channel.send("Night falls... Host, use **/night** when ready.");
+        await game.hostUser.send({ embeds: [createHostEmbed(game)], ephemeral: true }); // Update host
+    }
+
+    // --- /end command ---
+    if (commandName === 'end') {
+        delete games[channel.id];
+        await interaction.reply('Game has been ended by the host.');
+    }
 });
 
-http.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+// --- 5. Login ---
+client.login(TOKEN);
