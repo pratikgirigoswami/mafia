@@ -47,7 +47,7 @@ function closeMessage() {
 
 // ----- Host Flow -----
 btnHost.onclick = () => {
-  socket.emit('host-game');
+  socket.emit('host-create-game');
 };
 
 // Server confirms game created
