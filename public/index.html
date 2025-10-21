@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Mafia Host - Lobby</title>
+  <title>Mafia Host</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="/style.css" />
 </head>
@@ -22,6 +22,30 @@
       <button id="btnLock">Lock Game</button>
       <h3>Players Joined:</h3>
       <ul id="playerList"></ul>
+
+      <div id="hostControls" style="margin-top:16px; display:none;">
+        <h3>Host Actions</h3>
+
+        <button id="btnStartNight">Start Night</button>
+        <br><br>
+
+        <label>Select Mafia Target:</label>
+        <select id="mafiaTarget"></select>
+        <button id="btnMafiaKill">Confirm Mafia Kill</button>
+        <br><br>
+
+        <label>Select Doctor Save:</label>
+        <select id="doctorTarget"></select>
+        <button id="btnDoctorSave">Confirm Doctor Save</button>
+        <br><br>
+
+        <button id="btnStartDay">Start Day</button>
+        <br><br>
+
+        <label>Select Player to Eliminate by Vote:</label>
+        <select id="voteTarget"></select>
+        <button id="btnVoteElim">Confirm Vote</button>
+      </div>
     </div>
 
     <!-- Player UI -->
