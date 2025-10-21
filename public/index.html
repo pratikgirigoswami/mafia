@@ -2,21 +2,36 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Mafia Host - Dev</title>
+  <title>Mafia Host - Lobby</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
   <div id="app">
-    <h1>Mafia Host (dev)</h1>
+    <h1>Mafia Host</h1>
 
-    <div id="role">Client not connected</div>
-
-    <div class="controls">
-      <button id="btnPing">Send test ping</button>
+    <div id="menu">
+      <button id="btnHost">Host a Game</button>
+      <button id="btnJoin">Join a Game</button>
     </div>
 
-    <div id="log"></div>
+    <!-- Host UI -->
+    <div id="hostUI" style="display:none;">
+      <h2>Host Game</h2>
+      <div>Game ID: <span id="gameId">-</span></div>
+      <button id="btnLock">Lock Game</button>
+      <h3>Players Joined:</h3>
+      <ul id="playerList"></ul>
+    </div>
+
+    <!-- Player UI -->
+    <div id="playerUI" style="display:none;">
+      <h2>Join Game</h2>
+      <input id="gameInput" placeholder="Enter Game ID" />
+      <input id="nameInput" placeholder="Enter Your Name" />
+      <button id="btnJoinGame">Join</button>
+      <div id="joinStatus"></div>
+    </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
