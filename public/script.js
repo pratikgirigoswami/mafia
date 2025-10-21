@@ -77,3 +77,22 @@ socket.on('roles-assigned', (players) => {
   alert('Roles assigned! Ready to start the game.');
 });
 
+// --- Existing code from previous step stays ---
+socket.on('phase-update', ({ phase }) => {
+  alert('Phase changed: ' + phase);
+});
+
+socket.on('night-result', ({ killed, role }) => {
+  if (killed) alert(`Night Result: ${killed} was eliminated (${role})`);
+  else alert('Night Result: Doctor saved everyone!');
+});
+
+socket.on('vote-result', ({ killed, role }) => {
+  alert(`Voting Result: ${killed} eliminated (${role})`);
+});
+
+socket.on('game-over', ({ winner }) => {
+  alert(`Game Over! Winner: ${winner}`);
+});
+
+
