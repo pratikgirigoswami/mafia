@@ -60,3 +60,20 @@ socket.on('join-success', ({ gameId, name }) => {
 socket.on('join-failed', ({ reason }) => {
   joinStatus.textContent = `Failed to join: ${reason}`;
 });
+
+// --- Player gets role ---
+socket.on('role-reveal', ({ role }) => {
+  joinStatus.innerHTML = `<b>Your Role:</b> ${role}<br>(Visible for 30 seconds)`;
+  setTimeout(() => {
+    joinStatus.textContent = 'Role hidden. Wait for host to continue.';
+  }, 30000);
+});
+
+// --- Host gets all roles ---
+socket.on('roles-assigned', (players) => {
+  playerListEl.innerHTML = players
+    .map(p => `<li>${p.name} - <b>${p.role}</b></li>`)
+    .join('');
+  alert('Roles assigned! Ready to start the game.');
+});
+
