@@ -1,64 +1,47 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Mafia Host</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="stylesheet" href="/style.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mafia Host</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="app">
+<div id="container">
     <h1>Mafia Host</h1>
 
     <div id="menu">
-      <button id="btnHost">Host a Game</button>
-      <button id="btnJoin">Join a Game</button>
+        <button id="btnHost">Host Game</button><br>
+        <input type="text" placeholder="Game ID" id="gameInput">
+        <input type="text" placeholder="Your Name" id="nameInput">
+        <button id="btnJoin">Join Game</button>
     </div>
 
-    <!-- Host UI -->
-    <div id="hostUI" style="display:none;">
-      <h2>Host Game</h2>
-      <div>Game ID: <span id="gameId">-</span></div>
-      <button id="btnLock">Lock Game</button>
-      <h3>Players Joined:</h3>
-      <ul id="playerList"></ul>
-
-      <div id="hostControls" style="margin-top:16px; display:none;">
-        <h3>Host Actions</h3>
+    <div id="hostControls" style="display:none;">
+        <p>Game ID: <span id="gameId"></span></p>
+        <ul id="playerList"></ul>
 
         <button id="btnStartNight">Start Night</button>
-        <br><br>
-
-        <label>Select Mafia Target:</label>
-        <select id="mafiaTarget"></select>
-        <button id="btnMafiaKill">Confirm Mafia Kill</button>
-        <br><br>
-
-        <label>Select Doctor Save:</label>
-        <select id="doctorTarget"></select>
-        <button id="btnDoctorSave">Confirm Doctor Save</button>
-        <br><br>
-
+        <select id="mafiaTarget"></select><button id="btnMafiaKill">Confirm Mafia Kill</button>
+        <br>
+        <select id="doctorTarget"></select><button id="btnDoctorSave">Confirm Doctor Save</button>
+        <br>
         <button id="btnStartDay">Start Day</button>
-        <br><br>
-
-        <label>Select Player to Eliminate by Vote:</label>
-        <select id="voteTarget"></select>
-        <button id="btnVoteElim">Confirm Vote</button>
-      </div>
+        <select id="voteTarget"></select><button id="btnVoteElim">Confirm Vote</button>
+        <br>
+        <button id="btnEndGame" style="background-color:red;color:white;">End Game</button>
     </div>
 
-    <!-- Player UI -->
     <div id="playerUI" style="display:none;">
-      <h2>Join Game</h2>
-      <input id="gameInput" placeholder="Enter Game ID" />
-      <input id="nameInput" placeholder="Enter Your Name" />
-      <button id="btnJoinGame">Join</button>
-      <div id="joinStatus"></div>
+        <div id="roleBox" class="messageBox">
+            <span id="roleMsg"></span>
+            <button id="closeRoleMsg">Close</button>
+        </div>
+        <p id="joinStatus"></p>
     </div>
-  </div>
+</div>
 
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="/script.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="script.js"></script>
 </body>
 </html>
