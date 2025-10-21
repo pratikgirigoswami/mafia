@@ -10,7 +10,6 @@
 <div id="container">
     <h1>Mafia Host</h1>
 
-    <!-- Initial menu for hosting/joining -->
     <div id="menu">
         <button id="btnHost">Host Game</button><br>
         <input type="text" placeholder="Game ID" id="gameInput">
@@ -18,12 +17,15 @@
         <button id="btnJoin">Join Game</button>
     </div>
 
-    <!-- Host Controls Section -->
     <div id="hostControls" style="display:none;">
         <p>Game ID: <span id="gameId"></span></p>
         <ul id="playerList"></ul>
 
+        <button id="btnLockGame" style="background-color:#28a745;color:white;">Lock Game & Assign Roles</button>
+        <hr> 
+
         <button id="btnStartNight">Start Night</button>
+        <br>
         <select id="mafiaTarget"></select>
         <button id="btnMafiaKill">Confirm Mafia Kill</button>
         <br>
@@ -31,13 +33,14 @@
         <button id="btnDoctorSave">Confirm Doctor Save</button>
         <br>
         <button id="btnStartDay">Start Day</button>
+        <br>
         <select id="voteTarget"></select>
         <button id="btnVoteElim">Confirm Vote</button>
         <br>
+        <hr>
         <button id="btnEndGame" style="background-color:red;color:white;">End Game</button>
     </div>
 
-    <!-- Player UI (role view) -->
     <div id="playerUI" style="display:none;">
         <div id="roleBox" class="messageBox">
             <span id="roleMsg"></span>
@@ -47,11 +50,11 @@
     </div>
 </div>
 
-<!-- ✅ Message Box Overlay -->
 <div id="messageBox" style="display:none;
     position:fixed;
     top:0;left:0;width:100%;height:100%;
     background:rgba(0,0,0,0.5);
+    display:flex; /* ✅ Changed to flex */
     justify-content:center;
     align-items:center;
     z-index:1000;">
@@ -66,10 +69,11 @@
     <button onclick="closeMessage()" 
             style="padding:8px 16px;
             border:none;
-            background:#4CAF50;
+            background:#007bff; /* ✅ Changed color */
             color:white;
             border-radius:8px;
-            font-size:15px;">Close</button>
+            font-size:15px;
+            cursor:pointer;">OK</button>
   </div>
 </div>
 
