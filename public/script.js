@@ -1,136 +1,137 @@
 const socket = io();
 
-// DOM elements
+let currentGameId = null;
+let currentStep = 'waiting';
+
 const btnHost = document.getElementById('btnHost');
 const btnJoin = document.getElementById('btnJoin');
-const btnLock = document.getElementById('btnLock');
-const btnJoinGame = document.getElementById('btnJoinGame');
-
-const menu = document.getElementById('menu');
-const hostUI = document.getElementById('hostUI');
-const playerUI = document.getElementById('playerUI');
-const gameIdEl = document.getElementById('gameId');
-const playerListEl = document.getElementById('playerList');
-const gameInput = document.getElementById('gameInput');
-const nameInput = document.getElementById('nameInput');
-const joinStatus = document.getElementById('joinStatus');
-
-let currentGameId = null;
-
-// --- Host control elements ---
-const hostControls = document.getElementById('hostControls');
 const btnStartNight = document.getElementById('btnStartNight');
 const btnMafiaKill = document.getElementById('btnMafiaKill');
 const btnDoctorSave = document.getElementById('btnDoctorSave');
 const btnStartDay = document.getElementById('btnStartDay');
 const btnVoteElim = document.getElementById('btnVoteElim');
+const btnEndGame = document.getElementById('btnEndGame');
 
+const menu = document.getElementById('menu');
+const hostControls = document.getElementById('hostControls');
+const playerUI = document.getElementById('playerUI');
+const playerListEl = document.getElementById('playerList');
 const mafiaTarget = document.getElementById('mafiaTarget');
 const doctorTarget = document.getElementById('doctorTarget');
 const voteTarget = document.getElementById('voteTarget');
+const nameInput = document.getElementById('nameInput');
+const gameInput = document.getElementById('gameInput');
+const gameIdEl = document.getElementById('gameId');
+const roleBox = document.getElementById('roleBox');
+const roleMsg = document.getElementById('roleMsg');
+const closeRoleMsg = document.getElementById('closeRoleMsg');
+const joinStatus = document.getElementById('joinStatus');
 
-// --- Host actions ---
+// Host creates game
 btnHost.onclick = () => {
-  socket.emit('host-create-game');
-  menu.style.display = 'none';
-  hostUI.style.display = 'block';
+    socket.emit('host-create-game');
 };
 
 socket.on('game-created', ({ gameId }) => {
-  currentGameId = gameId;
-  gameIdEl.textContent = gameId;
+    currentGameId = gameId;
+    gameIdEl.textContent = gameId;
+    alert(`Game created: ${gameId}`);
 });
 
-// Lock game → assign roles
-btnLock.onclick = () => {
-  socket.emit('host-lock-game', { gameId: currentGameId });
-};
-
-// Player actions
+// Player joins
 btnJoin.onclick = () => {
-  menu.style.display = 'none';
-  playerUI.style.display = 'block';
+    const name = nameInput.value.trim();
+    const gameId = gameInput.value.trim();
+    if (!name || !gameId) return alert('Enter name & Game ID');
+    socket.emit('player-join', { name, gameId });
+    menu.style.display = 'none';
+    playerUI.style.display = 'block';
 };
 
-btnJoinGame.onclick = () => {
-  const name = nameInput.value.trim();
-  const gameId = gameInput.value.trim();
-  if (!name || !gameId) return alert('Enter name & Game ID');
-  socket.emit('player-join', { name, gameId });
-};
-
-socket.on('join-success', ({ gameId, name }) => {
-  currentGameId = gameId;
-  joinStatus.textContent = `Joined game as ${name}. Wait for host.`;
+socket.on('join-success', ({ name }) => {
+    joinStatus.textContent = `Joined game as ${name}. Wait for host.`;
 });
 
-socket.on('join-failed', ({ reason }) => {
-  alert('Failed to join: ' + reason);
-});
+socket.on('join-failed', ({ reason }) => alert('Failed to join: ' + reason));
 
-// Roles reveal
+// Show role once, no popups after hidden
 socket.on('role-reveal', ({ role }) => {
-  joinStatus.innerHTML = `<b>Your Role:</b> ${role}<br>(Visible for 30 seconds)`;
-  setTimeout(() => {
-    joinStatus.textContent = 'Role hidden. Wait for host to continue.';
-  }, 30000);
+    roleBox.style.display = 'block';
+    roleMsg.innerHTML = `<b>Your Role:</b> ${role}`;
+    setTimeout(() => {
+        roleMsg.innerHTML = `Role hidden. Wait for host.`;
+    }, 30000);
 });
+
+closeRoleMsg.onclick = () => roleBox.style.display = 'none';
 
 // Host receives full roles
 socket.on('roles-assigned', (players) => {
-  hostControls.style.display = 'block';
-  playerListEl.innerHTML = players.map(p => `<li>${p.name} - <b>${p.role}</b></li>`).join('');
-
-  // populate dropdowns
-  function updateOptions() {
-    [mafiaTarget, doctorTarget, voteTarget].forEach(sel => {
-      sel.innerHTML = players.filter(p => p.alive).map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-    });
-  }
-  updateOptions();
+    hostControls.style.display = 'block';
+    updatePlayerList(players);
+    updateDropdowns(players);
+    updateHostControls('night');
 });
 
-// --- Host button events ---
+function updatePlayerList(players) {
+    playerListEl.innerHTML = players.map(p => `<li>${p.name} - ${p.alive ? 'Alive' : 'Dead'}</li>`).join('');
+}
+
+function updateDropdowns(players) {
+    [mafiaTarget, doctorTarget, voteTarget].forEach(sel => {
+        sel.innerHTML = players.filter(p => p.alive).map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    });
+}
+
+function updateHostControls(step) {
+    currentStep = step;
+    btnStartNight.disabled = step !== 'night';
+    btnMafiaKill.disabled = step !== 'mafia';
+    btnDoctorSave.disabled = step !== 'doctor';
+    btnStartDay.disabled = step !== 'day';
+    btnVoteElim.disabled = step !== 'vote';
+    btnEndGame.disabled = false;
+}
+
+// Host button events
 btnStartNight.onclick = () => {
-  socket.emit('start-night', { gameId: currentGameId });
-  alert('Night started');
+    socket.emit('start-night', { gameId: currentGameId });
+    updateHostControls('mafia');
 };
 
 btnMafiaKill.onclick = () => {
-  const targetId = mafiaTarget.value;
-  socket.emit('mafia-kill', { gameId: currentGameId, playerId: targetId });
-  alert('Mafia target confirmed');
+    socket.emit('mafia-kill', { gameId: currentGameId, playerId: mafiaTarget.value });
+    updateHostControls('doctor');
 };
 
 btnDoctorSave.onclick = () => {
-  const targetId = doctorTarget.value;
-  socket.emit('doctor-save', { gameId: currentGameId, playerId: targetId });
-  alert('Doctor save confirmed');
+    socket.emit('doctor-save', { gameId: currentGameId, playerId: doctorTarget.value });
+    updateHostControls('day');
 };
 
 btnStartDay.onclick = () => {
-  socket.emit('start-day', { gameId: currentGameId });
+    socket.emit('start-day', { gameId: currentGameId });
+    updateHostControls('vote');
 };
 
 btnVoteElim.onclick = () => {
-  const targetId = voteTarget.value;
-  socket.emit('vote-elim', { gameId: currentGameId, playerId: targetId });
-  alert('Vote elimination confirmed');
+    socket.emit('vote-elim', { gameId: currentGameId, playerId: voteTarget.value });
+    updateHostControls('night');
 };
 
-// Updates player list in dropdowns dynamically
-socket.on('player-list-update', (players) => {
-  playerListEl.innerHTML = players.map(p => `<li>${p.name} - ${p.alive ? 'Alive' : 'Dead'}</li>`).join('');
-  [mafiaTarget, doctorTarget, voteTarget].forEach(sel => {
-    sel.innerHTML = players.filter(p => p.alive).map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-  });
-});
+btnEndGame.onclick = () => {
+    socket.emit('end-game', { gameId: currentGameId });
+    updateHostControls('over');
+};
+
+// Updates player list dynamically
+socket.on('player-list-update', updatePlayerList);
 
 // Night/Day results
-socket.on('phase-update', ({ phase }) => alert('Phase changed: ' + phase));
+socket.on('phase-update', ({ phase }) => console.log('Phase:', phase));
 socket.on('night-result', ({ killed, role }) => {
-  if (killed) alert(`Night Result: ${killed} was eliminated (${role})`);
-  else alert('Night Result: Doctor saved everyone!');
+    if (killed) alert(`Night Result: ${killed} was eliminated (${role})`);
+    else alert('Night Result: Doctor saved everyone!');
 });
 socket.on('vote-result', ({ killed, role }) => alert(`Voting Result: ${killed} eliminated (${role})`));
 socket.on('game-over', ({ winner }) => alert(`Game Over! Winner: ${winner}`));
