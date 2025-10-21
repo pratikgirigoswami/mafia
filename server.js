@@ -52,7 +52,7 @@ io.on('connection', (socket) => {
   socket.on('player-join', ({ name, gameId }) => {
     const game = games[gameId];
     if (!game || game.locked) return socket.emit('join-failed', { reason: 'Game not found or locked' });
-    const player = { id: socket.id, name };
+    const player = { id: socket.id, name, alive: true };
     game.players.push(player);
     socket.join(gameId);
     io.to(game.hostId).emit('player-list-update', game.players);
