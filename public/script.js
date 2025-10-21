@@ -27,16 +27,21 @@ const roleMsg = document.getElementById('roleMsg');
 const closeRoleMsg = document.getElementById('closeRoleMsg');
 const joinStatus = document.getElementById('joinStatus');
 
-// Host creates game
+// Host Game button
 btnHost.onclick = () => {
-    socket.emit('host-create-game');
+  socket.emit('host-game');
 };
 
+// When server confirms game creation
 socket.on('game-created', ({ gameId }) => {
-    currentGameId = gameId;
-    gameIdEl.textContent = gameId;
-    alert(`Game created: ${gameId}`);
+  currentGameId = gameId;
+  showMessage(`Game Created! ID: ${gameId}`);
+  document.getElementById('joinSection').style.display = 'none';
+  document.getElementById('hostControls').style.display = 'block';
+  document.getElementById('playerListSection').style.display = 'block';
+  updateHostControls('waiting'); // disable all until ready
 });
+
 
 // Player joins
 btnJoin.onclick = () => {
@@ -82,6 +87,18 @@ function updateDropdowns(players) {
         sel.innerHTML = players.filter(p => p.alive).map(p => `<option value="${p.id}">${p.name}</option>`).join('');
     });
 }
+
+function showMessage(text) {
+  const box = document.getElementById('messageBox');
+  const msg = document.getElementById('messageText');
+  msg.textContent = text;
+  box.style.display = 'flex';
+}
+
+function closeMessage() {
+  document.getElementById('messageBox').style.display = 'none';
+}
+
 
 function updateHostControls(step) {
     currentStep = step;
