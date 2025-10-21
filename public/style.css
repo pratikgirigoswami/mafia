@@ -1,4 +1,42 @@
-body { font-family: sans-serif; margin:20px; }
-button { margin:5px; padding:5px 10px; }
-select { margin:5px; padding:2px 5px; }
-#playerList li { margin-bottom: 3px; }
+body {
+    font-family: sans-serif;
+    background: linear-gradient(to bottom, #cce7ff, #ffffff);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+}
+
+#container {
+    text-align: center;
+    background: #f8f8f8;
+    padding: 20px;
+    border-radius: 20px;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+button {
+    margin: 5px;
+    padding: 10px 15px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+}
+
+select {
+    margin: 5px;
+    padding: 5px;
+    border-radius: 5px;
+}
+
+.messageBox {
+    border: 2px solid #0077cc;
+    border-radius: 15px;
+    padding: 10px;
+    margin: 10px 0;
+    background: #e6f0ff;
+    display: none;
+}
